@@ -1,43 +1,53 @@
 import subprocess
 import tempfile
 from io import BytesIO
+import os
 
 def compress_pdf(uploaded_file, target_size_kb=500):
     target_bytes = target_size_kb * 1024
+    quality_levels = ["/screen", "/ebook", "/printer", "/prepress"]
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_input:
         temp_input.write(uploaded_file.read())
         input_path = temp_input.name
 
-    output_io = BytesIO()
+    best_output = None
+    best_diff = float("inf")
 
-    # Ghostscript compression levels:
-    # /screen (low), /ebook, /printer, /prepress (high quality)
-    gs_quality = "/ebook"  # reasonable default
+    for quality in quality_levels:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_output:
+            output_path = temp_output.name
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_output:
-        output_path = temp_output.name
+            gs_command = [
+                "gs",
+                "-sDEVICE=pdfwrite",
+                "-dCompatibilityLevel=1.4",
+                f"-dPDFSETTINGS={quality}",
+                "-dNOPAUSE",
+                "-dQUIET",
+                "-dBATCH",
+                f"-sOutputFile={output_path}",
+                input_path
+            ]
 
-        gs_command = [
-            "gs",
-            "-sDEVICE=pdfwrite",
-            "-dCompatibilityLevel=1.4",
-            "-dPDFSETTINGS={}".format(gs_quality),
-            "-dNOPAUSE",
-            "-dQUIET",
-            "-dBATCH",
-            f"-sOutputFile={output_path}",
-            input_path
-        ]
+            try:
+                subprocess.run(gs_command, check=True)
+                size = os.path.getsize(output_path)
+                diff = abs(target_bytes - size)
 
-        try:
-            subprocess.run(gs_command, check=True)
-            with open(output_path, "rb") as f_out:
-                compressed_bytes = f_out.read()
-                output_io.write(compressed_bytes)
-                output_io.seek(0)
-            return output_io
+                if diff < best_diff:
+                    best_diff = diff
+                    with open(output_path, "rb") as f_out:
+                        best_output = BytesIO(f_out.read())
 
-        except subprocess.CalledProcessError as e:
-            print("[ERROR] Ghostscript compression failed:", e)
-            return uploaded_file
+            except Exception as e:
+                print(f"[ERROR] Failed with {quality}: {e}")
+                continue
+
+    if best_output:
+        best_output.seek(0)
+        return best_output
+    else:
+        print("[WARNING] Returning original file as compression failed.")
+        uploaded_file.seek(0)
+        return uploaded_file
