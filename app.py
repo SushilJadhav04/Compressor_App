@@ -22,10 +22,10 @@ if uploaded_file:
                 result = compress_image(uploaded_file, target_size_kb=target_size_kb)
                 final_size_kb = len(result.getvalue()) / 1024
                 st.success(f"Image compressed to {final_size_kb:.2f} KB")
-                st.download_button("Download Image", result, file_name="compressed_image.jpg")
+                st.download_button("Download Image", result, file_name="compressed.jpg",mine="application/pdf")
 
             elif file_type == "PDF":
                 result = compress_pdf(uploaded_file, target_size_kb=target_size_kb)
                 final_size_kb = len(result.getvalue()) / 1024
                 st.success(f"PDF compressed to {final_size_kb:.2f} KB(nearest possible based on content)")
-                st.download_button("Download PDF", result, file_name="compressed_pdf.pdf")
+                st.download_button("Download PDF", result, file_name="compressed.pdf",mine="application/pdf")
