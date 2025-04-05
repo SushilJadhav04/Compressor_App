@@ -3,6 +3,7 @@ import tempfile
 from PyPDF2 import PdfReader, PdfWriter
 from PIL import Image
 import os
+import target_size_kb
 
 def compress_pdf(uploaded_file, target_size_kb):
     """
