@@ -1,28 +1,43 @@
-import pikepdf
+import subprocess
+import tempfile
 from io import BytesIO
 
 def compress_pdf(uploaded_file, target_size_kb=500):
     target_bytes = target_size_kb * 1024
 
-    try:
-        original_pdf = pikepdf.open(uploaded_file)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_input:
+        temp_input.write(uploaded_file.read())
+        input_path = temp_input.name
 
-        # Attempt to compress streams (only light optimization)
-        compressed_pdf = pikepdf.Pdf.new()
-        compressed_pdf.pages.extend(original_pdf.pages)
+    output_io = BytesIO()
 
-        out_io = BytesIO()
-        compressed_pdf.save(out_io, 
-            compress_streams=True, 
-            object_stream_mode=pikepdf.ObjectStreamMode.generate
-        )
+    # Ghostscript compression levels:
+    # /screen (low), /ebook, /printer, /prepress (high quality)
+    gs_quality = "/ebook"  # reasonable default
 
-        size = len(out_io.getvalue())
-        out_io.seek(0)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_output:
+        output_path = temp_output.name
 
-        # Note: result might not always meet the target size due to PDF limits
-        return out_io
+        gs_command = [
+            "gs",
+            "-sDEVICE=pdfwrite",
+            "-dCompatibilityLevel=1.4",
+            "-dPDFSETTINGS={}".format(gs_quality),
+            "-dNOPAUSE",
+            "-dQUIET",
+            "-dBATCH",
+            f"-sOutputFile={output_path}",
+            input_path
+        ]
 
-    except Exception as e:
-        print(f"[ERROR] PDF compression failed: {e}")
-        return uploaded_file
+        try:
+            subprocess.run(gs_command, check=True)
+            with open(output_path, "rb") as f_out:
+                compressed_bytes = f_out.read()
+                output_io.write(compressed_bytes)
+                output_io.seek(0)
+            return output_io
+
+        except subprocess.CalledProcessError as e:
+            print("[ERROR] Ghostscript compression failed:", e)
+            return uploaded_file
