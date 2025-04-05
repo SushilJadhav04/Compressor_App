@@ -1,9 +1,9 @@
-from PIL import Image
+import pikepdf
 from io import BytesIO
 
-def compress_image(uploaded_file, quality=60):
-    image = Image.open(uploaded_file)
-    img_io = BytesIO()
-    image.save(img_io, format=image.format, optimize=True, quality=quality)
-    img_io.seek(0)
-    return img_io
+def compress_pdf(uploaded_file):
+    pdf = pikepdf.open(uploaded_file)
+    out_io = BytesIO()
+    pdf.save(out_io)  # Removed compression param
+    out_io.seek(0)
+    return out_io
