@@ -6,6 +6,18 @@ import os
 st.set_page_config(page_title="🗜️ File Compressor", layout="centered")
 st.title("Image & PDF Compressor")
 
+# Hide Streamlit menu and footer (AFTER set_page_config)
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            .stDeployButton {display:none;}
+            div.block-container {padding-top:1rem;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 uploaded_file = st.file_uploader("Upload an image or PDF", type=["jpg", "jpeg", "png", "pdf"])
 
 if uploaded_file:
