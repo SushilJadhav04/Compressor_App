@@ -15,38 +15,34 @@ def compress_pdf(uploaded_file, target_size_kb):
 
     while min_quality <= max_quality:
         mid_quality = (min_quality + max_quality) // 2
-        pdf = FPDF(unit="pt", format=[595.28, 841.89])  # A4 size in points
-        temp_image_paths = []
+        pdf = FPDF(unit="pt", format=[595.28, 841.89])  # A4 size
+        temp_files = []
 
-        try:
-            for i, page in enumerate(doc):
-                pix = page.get_pixmap(dpi=150)
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        for page in doc:
+            pix = page.get_pixmap(dpi=150)
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
-                # Save temp image
-                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
-                img.save(temp_file.name, format="JPEG", quality=mid_quality)
-                temp_image_paths.append(temp_file.name)
+            temp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+            img.save(temp_img.name, format="JPEG", quality=mid_quality)
+            temp_files.append(temp_img.name)
 
-            for img_path in temp_image_paths:
-                pdf.add_page()
-                pdf.image(img_path, x=0, y=0)
+        for temp_img_path in temp_files:
+            pdf.add_page()
+            pdf.image(temp_img_path, x=0, y=0)
 
-            output = BytesIO()
-            pdf.output(output)
-            current_size = output.tell()
+        output = BytesIO()
+        pdf.output(output)
+        current_size = output.tell()
 
-            if current_size <= target_bytes:
-                best_result = BytesIO(output.getvalue())
-                min_quality = mid_quality + 1
-            else:
-                max_quality = mid_quality - 1
+        # Clean up temp images
+        for path in temp_files:
+            os.remove(path)
 
-        finally:
-            # Clean up temp image files
-            for path in temp_image_paths:
-                if os.path.exists(path):
-                    os.remove(path)
+        if current_size <= target_bytes:
+            best_result = BytesIO(output.getvalue())
+            min_quality = mid_quality + 1
+        else:
+            max_quality = mid_quality - 1
 
     if best_result:
         best_result.seek(0)
