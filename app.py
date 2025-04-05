@@ -27,5 +27,5 @@ if uploaded_file:
             elif file_type == "PDF":
                 result = compress_pdf(uploaded_file, target_size_kb=target_size_kb)
                 final_size_kb = len(result.getvalue()) / 1024
-                st.success(f"PDF compressed to {final_size_kb:.2f} KB")
+                st.success(f"PDF compressed to {final_size_kb:.2f} KB(nearest possible based on content)")
                 st.download_button("Download PDF", result, file_name="compressed_pdf.pdf")
