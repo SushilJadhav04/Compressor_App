@@ -1,9 +1,7 @@
-## Updated pdf_compressor.py
 from io import BytesIO
 import tempfile
 from PyPDF2 import PdfReader, PdfWriter
 from PIL import Image
-import subprocess
 import os
 
 def compress_pdf(uploaded_file, target_size_kb):
@@ -23,59 +21,56 @@ def compress_pdf(uploaded_file, target_size_kb):
             tmp_input_path = tmp_input.name
             tmp_output_path = tmp_output.name
 
-            # Binary search parameters
-            min_quality = 5
-            max_quality = 95
-            best_quality = min_quality
-            best_result = None
-            target_bytes = target_size_kb * 1024
+        # Binary search parameters
+        min_quality = 5
+        max_quality = 95
+        best_quality = min_quality
+        best_result = None
+        target_bytes = target_size_kb * 1024
+
+        reader = PdfReader(tmp_input_path)
+        total_pages = len(reader.pages)
+
+        while min_quality <= max_quality:
+            mid_quality = (min_quality + max_quality) // 2
+            writer = PdfWriter()
             
-            while min_quality <= max_quality:
-                mid_quality = (min_quality + max_quality) // 2
-                
-                # Use ghostscript for compression
-                command = [
-                    'gs',
-                    '-sDEVICE=pdfwrite',
-                    '-dCompatibilityLevel=1.4',
-                    '-dPDFSETTINGS=/screen',
-                    '-dNOPAUSE',
-                    '-dQUIET',
-                    '-dBATCH',
-                    f'-dJPEGQ={low_quality}',
-                    f'-sOutputFile={tmp_output_path}',
-                    tmp_input_path
-                ]
-                
-                subprocess.run(command, check=True)
-                
-                # Check file size
-                current_size = os.path.getsize(tmp_output_path)
-                
-                if current_size <= target_bytes:
-                    best_quality = mid_quality
-                    best_result = tmp_output_path
-                    min_quality = mid_quality + 1
-                else:
-                    max_quality = mid_quality - 1
+            # Process each page
+            for page in reader.pages:
+                writer.add_page(page)
+
+            # Compress PDF
+            writer.add_metadata(reader.metadata)
+            with open(tmp_output_path, 'wb') as output_file:
+                writer.write(output_file, compress_streams=True, image_compression='jpeg', 
+                            jpeg_quality=mid_quality)
+
+            current_size = os.path.getsize(tmp_output_path)
             
-            # If compression failed to reach target, use the best result or fallback
-            if best_result:
-                with open(best_result, 'rb') as f:
-                    buffer.write(f.read())
+            if current_size <= target_bytes:
+                best_quality = mid_quality
+                with open(tmp_output_path, 'rb') as f:
+                    best_result = BytesIO(f.read())
+                min_quality = mid_quality + 1
             else:
-                # Fallback to maximum compression
-                try:
-                    command[-3] = f'-dJPEGQ=5'
-                    subprocess.run(command, check=True, capture_output=True)
-                    with open(tmp_output_path, 'rb') as f:
-                        buffer.write(f.read())
-                except subprocess.CalledProcessError as e:
-                    # If Ghostscript fails, use PyPDF2 fallback
-                    fallback_compress_pdf(tmp_input_path, tmp_output_path)
-                    with open(tmp_output_path, 'rb') as f:
-                        buffer.write(f.read())
-                
+                max_quality = mid_quality - 1
+
+        # If compression failed to reach target, use maximum compression
+        if best_result is None:
+            writer = PdfWriter()
+            for page in reader.pages:
+                writer.add_page(page)
+            
+            writer.add_metadata(reader.metadata)
+            with open(tmp_output_path, 'wb') as output_file:
+                writer.write(output_file, compress_streams=True, image_compression='jpeg', 
+                            jpeg_quality=5)
+            
+            with open(tmp_output_path, 'rb') as f:
+                best_result = BytesIO(f.read())
+
+        buffer = best_result
+
     except Exception as e:
         raise RuntimeError(f"PDF compression failed: {str(e)}") from e
     finally:
