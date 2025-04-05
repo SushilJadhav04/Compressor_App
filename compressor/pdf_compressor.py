@@ -5,46 +5,52 @@ import os
 
 def compress_pdf(uploaded_file, target_size_kb=500):
     target_bytes = target_size_kb * 1024
-    quality_levels = ["/screen", "/ebook", "/printer", "/prepress"]
 
+    # PDF Quality presets in ascending order (lower = higher compression)
+    quality_levels = ["/screen", "/ebook", "/printer", "/prepress"]
+    
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_input:
         temp_input.write(uploaded_file.read())
         input_path = temp_input.name
 
     best_output = None
     best_diff = float("inf")
+    best_quality = None
 
+    # Try each Ghostscript compression level
     for quality in quality_levels:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_output:
             output_path = temp_output.name
 
-            gs_command = [
-                "gs",
-                "-sDEVICE=pdfwrite",
-                "-dCompatibilityLevel=1.4",
-                f"-dPDFSETTINGS={quality}",
-                "-dNOPAUSE",
-                "-dQUIET",
-                "-dBATCH",
-                f"-sOutputFile={output_path}",
-                input_path
-            ]
+        gs_command = [
+            "gs",
+            "-sDEVICE=pdfwrite",
+            "-dCompatibilityLevel=1.4",
+            f"-dPDFSETTINGS={quality}",
+            "-dNOPAUSE",
+            "-dQUIET",
+            "-dBATCH",
+            f"-sOutputFile={output_path}",
+            input_path
+        ]
 
-            try:
-                subprocess.run(gs_command, check=True)
-                size = os.path.getsize(output_path)
-                diff = abs(target_bytes - size)
+        try:
+            subprocess.run(gs_command, check=True)
+            size = os.path.getsize(output_path)
+            diff = abs(size - target_bytes)
 
-                if diff < best_diff:
-                    best_diff = diff
-                    with open(output_path, "rb") as f_out:
-                        best_output = BytesIO(f_out.read())
+            if diff < best_diff:
+                best_diff = diff
+                best_quality = quality
+                with open(output_path, "rb") as f_out:
+                    best_output = BytesIO(f_out.read())
 
-            except Exception as e:
-                print(f"[ERROR] Failed with {quality}: {e}")
-                continue
+        except Exception as e:
+            print(f"[ERROR] Ghostscript failed for {quality}: {e}")
+            continue
 
     if best_output:
+        print(f"[INFO] Best quality: {best_quality} | Size: {len(best_output.getvalue()) / 1024:.2f} KB")
         best_output.seek(0)
         return best_output
     else:
