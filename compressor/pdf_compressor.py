@@ -13,7 +13,7 @@ def compress_pdf(uploaded_file, target_size_kb):
 
     while min_quality <= max_quality:
         mid_quality = (min_quality + max_quality) // 2
-        pdf = FPDF(unit="pt", format=[595.28, 841.89])  # Default A4 size
+        pdf = FPDF(unit="pt", format=[595.28, 841.89])  # A4 size in points
         img_buffers = []
 
         for page in doc:
@@ -22,6 +22,7 @@ def compress_pdf(uploaded_file, target_size_kb):
             img_buffer = BytesIO()
             img.save(img_buffer, format="JPEG", quality=mid_quality)
             img_buffer.seek(0)
+            img_buffer.name = "page.jpg"  # <-- 🔥 Fix: Assign a fake name
             img_buffers.append(img_buffer)
 
         for img_buf in img_buffers:
