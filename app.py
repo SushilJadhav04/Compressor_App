@@ -2,17 +2,19 @@ import streamlit as st
 from compressor.image_compressor import compress_image
 from compressor.pdf_compressor import compress_pdf
 
-st.set_page_config(page_title="Image & PDF Compressor", layout="centered")
+st.set_page_config(page_title="🗜️ File Compressor", layout="centered")
 st.title("📦 Image & PDF Compressor")
 
 uploaded_file = st.file_uploader("Upload an image or PDF", type=["jpg", "jpeg", "png", "pdf"])
-file_type = st.radio("Select File Type:", options=["Image", "PDF"])
 
 if uploaded_file:
-    if file_type == "Image":
-        quality = st.slider("Select Compression Quality", 10, 100, 60, step=10)
+    file_type = "Image" if uploaded_file.type.startswith("image") else "PDF"
+    st.write(f"Detected file type: **{file_type}**")
 
-    if st.button("Compress"):
+    if file_type == "Image":
+        quality = st.slider("Select Compression Quality (lower = smaller size)", 10, 100, 60, step=10)
+
+    if st.button("🔽 Compress & Download"):
         if file_type == "Image":
             result = compress_image(uploaded_file, quality=quality)
             st.success("✅ Image compressed!")
