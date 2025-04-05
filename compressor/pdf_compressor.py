@@ -1,87 +1,53 @@
+from pdf2image import convert_from_bytes
+from fpdf import FPDF
+from PIL import Image
 from io import BytesIO
-import tempfile
-from PyPDF2 import PdfReader, PdfWriter
-import os
 
 def compress_pdf(uploaded_file, target_size_kb):
-    """
-    Compresses PDF to target size using binary search.
-    Returns: BytesIO buffer of compressed PDF.
-    """
-    buffer = BytesIO()
-    tmp_input_path = None
-    tmp_output_path = None
+    images = convert_from_bytes(uploaded_file.read(), dpi=150)
+    target_bytes = target_size_kb * 1024
 
-    try:
-        # Create temporary files
-        tmp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-        tmp_output = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-        tmp_input_path = tmp_input.name
-        tmp_output_path = tmp_output.name
+    min_quality = 10
+    max_quality = 95
+    best_pdf = None
+    best_diff = float("inf")
 
-        # Save uploaded file to temp input
-        tmp_input.write(uploaded_file.getvalue())
-        tmp_input.close()
-        tmp_output.close()
+    while min_quality <= max_quality:
+        mid_quality = (min_quality + max_quality) // 2
+        pdf = FPDF(unit="pt", format=[img.width, img.height])
 
-        # Binary search parameters
-        min_quality = 5
-        max_quality = 95
-        best_result = None
-        target_bytes = target_size_kb * 1024
+        image_buffers = []
+        for img in images:
+            img_buffer = BytesIO()
+            rgb_img = img.convert("RGB")
+            rgb_img.save(img_buffer, format="JPEG", quality=mid_quality)
+            img_buffer.seek(0)
+            image_buffers.append(img_buffer)
 
-        while min_quality <= max_quality:
-            mid_quality = (min_quality + max_quality) // 2
+        pdf = FPDF(unit="pt", format=[images[0].width, images[0].height])
+        for buf in image_buffers:
+            pdf.add_page()
+            img_path = BytesIO(buf.read())
+            buf.seek(0)
+            pdf.image(img_path, x=0, y=0, w=images[0].width, h=images[0].height)
 
-            reader = PdfReader(tmp_input_path)
-            writer = PdfWriter()
+        output_buffer = BytesIO()
+        pdf.output(output_buffer)
+        current_size = output_buffer.tell()
 
-            for page in reader.pages:
-                writer.add_page(page)
+        diff = abs(current_size - target_bytes)
 
-            writer.add_metadata(reader.metadata)
+        if current_size <= target_bytes:
+            best_pdf = BytesIO(output_buffer.getvalue())
+            best_diff = diff
+            min_quality = mid_quality + 1
+        else:
+            max_quality = mid_quality - 1
 
-            with open(tmp_output_path, 'wb') as output_file:
-                writer.write(output_file)
-
-            current_size = os.path.getsize(tmp_output_path)
-
-            if current_size <= target_bytes:
-                with open(tmp_output_path, 'rb') as f:
-                    best_result = BytesIO(f.read())
-                min_quality = mid_quality + 1
-            else:
-                max_quality = mid_quality - 1
-
-        # Fallback if compression didn't meet target
-        if best_result is None:
-            reader = PdfReader(tmp_input_path)
-            writer = PdfWriter()
-
-            for page in reader.pages:
-                writer.add_page(page)
-
-            writer.add_metadata(reader.metadata)
-
-            with open(tmp_output_path, 'wb') as output_file:
-                writer.write(output_file)
-
-            with open(tmp_output_path, 'rb') as f:
-                best_result = BytesIO(f.read())
-
-        buffer = best_result
-
-    except Exception as e:
-        raise RuntimeError(f"PDF compression failed: {str(e)}") from e
-
-    finally:
-        # Cleanup temp files
-        if tmp_input_path and os.path.exists(tmp_input_path):
-            try: os.remove(tmp_input_path)
-            except Exception: pass
-        if tmp_output_path and os.path.exists(tmp_output_path):
-            try: os.remove(tmp_output_path)
-            except Exception: pass
-
-    buffer.seek(0)
-    return buffer
+    if best_pdf:
+        best_pdf.seek(0)
+        return best_pdf
+    else:
+        # fallback: return last compressed output
+        output_buffer.seek(0)
+        return output_buffer
