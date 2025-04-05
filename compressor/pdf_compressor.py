@@ -1,7 +1,6 @@
 from io import BytesIO
 import tempfile
 from PyPDF2 import PdfReader, PdfWriter
-from PIL import Image
 import os
 
 def compress_pdf(uploaded_file, target_size_kb):
@@ -15,15 +14,15 @@ def compress_pdf(uploaded_file, target_size_kb):
     
     try:
         # Create temporary files
-        tmp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-        tmp_output = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-        tmp_input_path = tmp_input.name
-        tmp_output_path = tmp_output.name
-        
-        # Save uploaded file to temp input
-        tmp_input.write(uploaded_file.getvalue())
-        tmp_input.close()
-        tmp_output.close()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_input, \
+             tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_output:
+            
+            tmp_input_path = tmp_input.name
+            tmp_output_path = tmp_output.name
+            
+            # Save uploaded file to temp input
+            with open(tmp_input_path, 'wb') as f:
+                f.write(uploaded_file.getvalue())
 
         # Binary search parameters
         min_quality = 5
@@ -80,16 +79,12 @@ def compress_pdf(uploaded_file, target_size_kb):
         raise RuntimeError(error_msg) from e
     finally:
         # Cleanup temporary files
-        if tmp_input_path and os.path.exists(tmp_input_path):
-            try:
-                os.remove(tmp_input_path)
-            except Exception:
-                pass
-        if tmp_output_path and os.path.exists(tmp_output_path):
-            try:
-                os.remove(tmp_output_path)
-            except Exception:
-                pass
+        for path in [tmp_input_path, tmp_output_path]:
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
     
     buffer.seek(0)
     return buffer
