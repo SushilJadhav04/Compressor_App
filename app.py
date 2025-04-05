@@ -13,8 +13,8 @@ hide_streamlit_style = """
             footer {visibility: hidden;}
             header {visibility: hidden;}
             .stDeployButton {display:none;}
-            div.block-container {padding-top:1rem;}
-            .viewerBadge_container__1QSob {display: none;}
+            .viewerBadge_container__1QSob, .viewerBadge_link__qRIco {
+        display: none !important;
             </style>
             """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
