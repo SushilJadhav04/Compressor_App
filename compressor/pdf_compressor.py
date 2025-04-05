@@ -42,7 +42,7 @@ def compress_pdf(uploaded_file, target_size_kb):
                     '-dNOPAUSE',
                     '-dQUIET',
                     '-dBATCH',
-                    f'-dJPEGQ={mid_quality}',
+                    f'-dJPEGQ={low_quality}',
                     f'-sOutputFile={tmp_output_path}',
                     tmp_input_path
                 ]
@@ -65,14 +65,16 @@ def compress_pdf(uploaded_file, target_size_kb):
                     buffer.write(f.read())
             else:
                 # Fallback to maximum compression
-                command[-3] = f'-dJPEGQ=5'
-                subprocess.run(command, check=True)
-                with open(tmp_output_path, 'rb') as f:
-                    buffer.write(f.read())
-
-            # Read compressed PDF into buffer
-            with open(tmp_output_path, 'rb') as f:
-                buffer.write(f.read())
+                try:
+                    command[-3] = f'-dJPEGQ=5'
+                    subprocess.run(command, check=True, capture_output=True)
+                    with open(tmp_output_path, 'rb') as f:
+                        buffer.write(f.read())
+                except subprocess.CalledProcessError as e:
+                    # If Ghostscript fails, use PyPDF2 fallback
+                    fallback_compress_pdf(tmp_input_path, tmp_output_path)
+                    with open(tmp_output_path, 'rb') as f:
+                        buffer.write(f.read())
                 
     except Exception as e:
         raise RuntimeError(f"PDF compression failed: {str(e)}") from e
