@@ -7,20 +7,30 @@ def compress_image(uploaded_file, target_size_kb=200):
     if image.mode != "RGB":
         image = image.convert("RGB")
 
-    quality = 95
-    img_io = BytesIO()
+    min_quality = 10
+    max_quality = 95
+    best_quality = min_quality
+    best_result = None
+    target_bytes = target_size_kb * 1024
 
-    while quality > 10:
-        img_io.seek(0)
-        img_io.truncate(0)
+    # Binary search to find best quality for target size
+    while min_quality <= max_quality:
+        mid_quality = (min_quality + max_quality) // 2
+        img_io = BytesIO()
+        image.save(img_io, format='JPEG', quality=mid_quality, optimize=True)
+        size = len(img_io.getvalue())
 
-        image.save(img_io, format='JPEG', optimize=True, quality=quality)
-        size_kb = len(img_io.getvalue()) / 1024
+        if size <= target_bytes:
+            best_quality = mid_quality
+            best_result = img_io
+            min_quality = mid_quality + 1
+        else:
+            max_quality = mid_quality - 1
 
-        if size_kb <= target_size_kb:
-            break
+    # Fallback in case compression fails
+    if best_result is None:
+        best_result = BytesIO()
+        image.save(best_result, format='JPEG', quality=85, optimize=True)
 
-        quality -= 5
-
-    img_io.seek(0)
-    return img_io
+    best_result.seek(0)
+    return best_result
