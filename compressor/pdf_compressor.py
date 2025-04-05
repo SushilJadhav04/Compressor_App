@@ -30,9 +30,10 @@ def compress_pdf(uploaded_file, target_size_kb):
             pdf.add_page()
             pdf.image(temp_img_path, x=0, y=0)
 
-        output = BytesIO()
-        pdf.output(output)
-        current_size = output.tell()
+        output_data = pdf.output(dest='S').encode('latin1')  # FPDF returns string, encode to bytes
+        output = BytesIO(output_data)
+        current_size = len(output_data)
+
 
         # Clean up temp images
         for path in temp_files:
