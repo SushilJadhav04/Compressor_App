@@ -1,59 +1,43 @@
-import subprocess
-import tempfile
+import pikepdf
 from io import BytesIO
-import os
 
 def compress_pdf(uploaded_file, target_size_kb=500):
     target_bytes = target_size_kb * 1024
-
-    # PDF Quality presets in ascending order (lower = higher compression)
-    quality_levels = ["/screen", "/ebook", "/printer", "/prepress"]
-    
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_input:
-        temp_input.write(uploaded_file.read())
-        input_path = temp_input.name
+    quality_options = [
+        pikepdf.CompressionLevel.compression_level_fast,
+        pikepdf.CompressionLevel.default,
+        pikepdf.CompressionLevel.compression_level_max
+    ]
 
     best_output = None
     best_diff = float("inf")
-    best_quality = None
 
-    # Try each Ghostscript compression level
-    for quality in quality_levels:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_output:
-            output_path = temp_output.name
+    try:
+        original_pdf = pikepdf.open(uploaded_file)
 
-        gs_command = [
-            "gs",
-            "-sDEVICE=pdfwrite",
-            "-dCompatibilityLevel=1.4",
-            f"-dPDFSETTINGS={quality}",
-            "-dNOPAUSE",
-            "-dQUIET",
-            "-dBATCH",
-            f"-sOutputFile={output_path}",
-            input_path
-        ]
+        for compression in quality_options:
+            out_io = BytesIO()
+            original_pdf.save(out_io, 
+                compress_streams=True, 
+                object_stream_mode=pikepdf.ObjectStreamMode.generate,
+                compression=compression
+            )
 
-        try:
-            subprocess.run(gs_command, check=True)
-            size = os.path.getsize(output_path)
+            size = len(out_io.getvalue())
             diff = abs(size - target_bytes)
 
             if diff < best_diff:
+                best_output = out_io
                 best_diff = diff
-                best_quality = quality
-                with open(output_path, "rb") as f_out:
-                    best_output = BytesIO(f_out.read())
 
-        except Exception as e:
-            print(f"[ERROR] Ghostscript failed for {quality}: {e}")
-            continue
+    except Exception as e:
+        print(f"[ERROR] PDF compression failed: {e}")
+        uploaded_file.seek(0)
+        return uploaded_file
 
     if best_output:
-        print(f"[INFO] Best quality: {best_quality} | Size: {len(best_output.getvalue()) / 1024:.2f} KB")
         best_output.seek(0)
         return best_output
     else:
-        print("[WARNING] Returning original file as compression failed.")
         uploaded_file.seek(0)
         return uploaded_file
