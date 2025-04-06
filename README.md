@@ -27,3 +27,6 @@ pip install -r requirements.txt
 
 Run the App
 streamlit run app.py
+
+![image](https://github.com/user-attachments/assets/83a4137e-9a8f-403e-81f5-047e33bdb2eb)
+
